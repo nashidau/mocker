@@ -1,7 +1,12 @@
 
+#define _GNU_SOURCE
+#include <getopt.h>
 #include <stdio.h>
 
 #include "mocker.h"
+
+// If set, we will generate mock data for this struct.
+char *target_struct = NULL;
 
 static int get_stream_id(const char *name)
 {
@@ -11,30 +16,6 @@ static int get_stream_id(const char *name)
 			return i;
 	}
 	return -1;
-}
-
-static char *determine_symbol_name(struct symbol *sym)
-{
-	static char *stars = "**********";
-	static char buf[100];
-	const char *name = "";
-	const char *type = "FIXME";
-	int ptrs = 0;
-
-	while (sym->ctype.base_type->type == SYM_PTR) {
-		ptrs ++;
-		sym = sym->ctype.base_type;
-	}
-
-	if (sym->ident) {
-		name = show_ident(sym->ident);
-	}
-
-	type = builtin_typename(sym);
-	
-	snprintf(buf,sizeof(buf), "%s %.*s%s", type, ptrs, stars, name);
-
-	return buf;
 }
 
 const char *
@@ -82,7 +63,6 @@ static void mock_symbol(struct symbol *sym)
 {
 	struct symbol *arg;
 	struct symbol *fn;
-	const char *leader = "";
 
 	if (!sym) return;
 
@@ -131,72 +111,15 @@ static void examine_symbol(struct symbol *sym)
 	if (sym->type == SYM_ENUM) return;
 	if (sym->type != SYM_STRUCT) return;
 
+	if (strcmp(target_struct, sym->ident->name) != 0) {
+		// Not the one...
+		return;
+	}
+
 	printf("// File: %s %d\n", stream_name(sym->pos.stream), sym->pos.line);
-	//printf("Type name is %s\n", get_type_name(sym->type));
-	//printf("Identifier: %s\n", show_ident(sym->ident));
-
-//	if (strcmp(show_ident(sym->ident), "foo")) {
-//		printf("Not the one\n");
-//		return;
-//	}
-
-	
-	//printf("Sym type is %d (struct: %d)\n", sym->type, SYM_STRUCT);
-	printf("struct %s {\n", sym->ident->name);
+	printf("struct %s\n", sym->ident->name);
 
 	mock_members(sym->symbol_list);
-	printf("}\n");
-
-#if 0
-	const char *base;
-	int array_size;
-
-	if (!sym)
-		return;
-	if (sym->aux)		/*already visited */
-		return;
-
-	if (sym->ident && sym->ident->reserved)
-		return;
-
-	child = new_sym_node(sym, get_type_name(sym->type), node);
-	examine_modifiers(sym, child);
-	examine_layout(sym, child);
-
-	if (sym->ctype.base_type) {
-		if ((base = builtin_typename(sym->ctype.base_type)) == NULL) {
-			if (!sym->ctype.base_type->aux) {
-				examine_symbol(sym->ctype.base_type, root_node);
-			}
-			xmlNewProp(child, BAD_CAST "base-type",
-			           xmlGetProp((xmlNodePtr)sym->ctype.base_type->aux, BAD_CAST "id"));
-		} else {
-			newProp(child, "base-type-builtin", base);
-		}
-	}
-	if (sym->array_size) {
-		/* TODO: modify get_expression_value to give error return */
-		array_size = get_expression_value(sym->array_size);
-		newNumProp(child, "array-size", array_size);
-	}
-
-
-	switch (sym->type) {
-	case SYM_STRUCT:
-	case SYM_UNION:
-		examine_members(sym->symbol_list, child);
-		break;
-	case SYM_FN:
-		examine_members(sym->arguments, child);
-		break;
-	case SYM_UNINITIALIZED:
-		newProp(child, "base-type-builtin", builtin_typename(sym));
-		break;
-	default:
-		break;
-	}
-	return;
-#endif
 }
 
 
@@ -245,10 +168,49 @@ int main(int argc, char **argv) {
 	struct string_list *filelist = NULL;
 	struct symbol_list *symlist = NULL;
 	char *file;
+	const char *optstring = "t:mhvo:I:";
+	char *outfile;
+	FILE *out = NULL;
+	int make_mock = 0;
+	int opt;
+	const struct option options[] = {
+		{ "type", required_argument, NULL, 't' },
+		{ "mock", no_argument, &make_mock, 1 },
+		{ "verbose", no_argument, &verbose, 1 },
+		{ "outfile", required_argument, NULL, 'o' },
+		{ "help", no_argument, NULL, 'h' }, 
+		{ NULL, 0, 0, 0 },
+	};
 
 	printf("Mocker starting\n");
 
-	symlist = sparse_initialize(argc, argv, &filelist);
+	while ((opt = getopt_long(argc, argv, optstring, options, NULL)) != -1) {
+		switch (opt) {
+		case 't':
+			target_struct = optarg;
+			break;
+		case 'h':
+			printf("FIXME: help\n");
+			break;
+		case 'o':
+			printf("Outputting to %s\n", optarg);
+			outfile = optarg;
+			break;
+		default:
+			printf("Unknown arg\n");
+			exit(1);
+		}
+	}
+
+	symlist = sparse_initialize(argc + 1 - optind, argv + optind - 1, &filelist);
+
+	if (outfile) {
+		out = fopen(outfile, "w");
+		if (!out) {
+			perror("fopen");
+			exit(1);
+		}
+	}
 
 	FOR_EACH_PTR_NOTAG(filelist, file) {
 		examine_symbol_list(file, symlist);
