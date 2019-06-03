@@ -194,8 +194,14 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 
 	FOR_EACH_PTR(fn->arguments, arg) {
 		if (strcmp(show_ident(arg->ident), "result") == 0) {
-			fprintf(outfp, "\tmemcpy(%s, mock_ptr_type, sizeof(*%s));\n",
+			fprintf(outfp, "\t{\n");
+			fprintf(outfp, "\t\t%s rv = mock_ptr_type(%s));\n",
+					get_typename(&arg->ctype),
+					get_typename(&arg->ctype));
+			fprintf(outfp, "\t\tif (%s != NULL) {\n", show_ident(arg->ident));
+			fprintf(outfp, "\t\t\tmemcpy(%s, rv, sizeof(*%s));\n",
 					show_ident(arg->ident), show_ident(arg->ident));
+			fprintf(outfp, "\t\t}\n\t}\n");
 		} else if (arg->ctype.base_type->type == SYM_PTR) {
 			fprintf(outfp, "\tcheck_expected_ptr(%s);\n", show_ident(arg->ident));
 		} else {
