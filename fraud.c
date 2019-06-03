@@ -13,6 +13,7 @@
 
 #include <assert.h>
 #include <getopt.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,9 +31,9 @@ struct include {
 };
 
 
-static void examine_symbol_list(const char *file, struct symbol_list *list);
-static void examine_namespace(struct symbol *sym);
-static void mock_symbol(struct symbol *sym);
+static void examine_symbol_list(const char *file, struct symbol_list *list, FILE *outfp);
+static void examine_namespace(struct symbol *sym, FILE *outfp);
+static void mock_symbol(struct symbol *sym, FILE *outfp);
 static const char *get_typename(struct ctype *ctype);
 static void dump_mocks(struct string_list *filelist, struct symbol_list *symlist, FILE *outfp);
 
@@ -119,7 +120,6 @@ main(int argc, char **argv) {
 
 	while (fgets(buf, sizeof(buf), fp)) {
 		if (strncmp("** INCLUDES", buf, 10) == 0) {
-			printf("Includes\n");
 			dump_includes(includes, outfp);
 		} else if (strncmp("** MOCKS", buf, 7) == 0) {
 			dump_mocks(filelist, symlist, outfp);
@@ -136,42 +136,41 @@ dump_mocks(struct string_list *filelist, struct symbol_list *symlist, FILE *outf
 	char *file;
 
 	FOR_EACH_PTR_NOTAG(filelist, file) {
-		examine_symbol_list(file, symlist);
+		examine_symbol_list(file, symlist, outfp);
 		sparse_keep_tokens(file);
-		examine_symbol_list(file, file_scope->symbols);
-		examine_symbol_list(file, global_scope->symbols);
+		examine_symbol_list(file, file_scope->symbols, outfp);
+		examine_symbol_list(file, global_scope->symbols, outfp);
 	} END_FOR_EACH_PTR_NOTAG(file);
 
 }
 
-static void examine_symbol_list(const char *file, struct symbol_list *list)
+static void examine_symbol_list(const char *file, struct symbol_list *list, FILE *outfp)
 {
 	struct symbol *sym;
 	int stream_id = get_stream_id(file);
-printf("'xx: %p\n", list);
+
 	if (!list)
 		return;
 	FOR_EACH_PTR(list, sym) {
-printf("%d %d\n", sym->pos.stream, stream_id);
 		if (sym->pos.stream == stream_id)
-			examine_namespace(sym);
+			examine_namespace(sym, outfp);
 	} END_FOR_EACH_PTR(sym);
 }
 
-static void examine_namespace(struct symbol *sym)
+static void examine_namespace(struct symbol *sym, FILE *outfp)
 {
-printf("ident %p\n", sym->ident);
 	if (sym->ident) {
 		if (sym->type == SYM_NODE)
-			mock_symbol(sym);
+			mock_symbol(sym, outfp);
 		return;
 	}
 }
 
-static void mock_symbol(struct symbol *sym)
+static void mock_symbol(struct symbol *sym, FILE *outfp)
 {
 	struct symbol *arg;
 	struct symbol *fn;
+	bool first = true;
 
 	if (!sym) return;
 
@@ -180,18 +179,31 @@ static void mock_symbol(struct symbol *sym)
 	if (fn->type != SYM_FN) {
 		return;
 	}
-	//printf("Found function member: %s\n", show_ident(sym->ident));
-
-	//printf("\treturn: %d %s\n", fn->ctype.base_type->type, builtin_typename(fn->ctype.base_type));
-
 
 	// So we have a function pointer:
-	printf("%s\n%s(\n", get_typename(&fn->ctype), show_ident(sym->ident));
-
+	fprintf(outfp, "%s\n%s(\n", get_typename(&fn->ctype), show_ident(sym->ident));
 
 	FOR_EACH_PTR(fn->arguments, arg) {
-		printf("\t%s %s\n", get_typename(&arg->ctype), arg->ident ? show_ident(arg->ident) : "(anon)");
+		fprintf(outfp, "%s\t\t%s %s", first ? "": ",\n", get_typename(&arg->ctype), show_ident(arg->ident));
+		first = false;
 	} END_FOR_EACH_PTR(arg);
+	if (first) {
+		fprintf(outfp, "\t\tvoid");
+	}
+	fprintf(outfp, ") {\n");
+
+	FOR_EACH_PTR(fn->arguments, arg) {
+		if (strcmp(show_ident(arg->ident), "result") == 0) {
+			fprintf(outfp, "\tmemcpy(%s, mock_ptr_type, sizeof(*%s));\n",
+					show_ident(arg->ident), show_ident(arg->ident));
+		} else if (arg->ctype.base_type->type == SYM_PTR) {
+			fprintf(outfp, "\tcheck_expected_ptr(%s);\n", show_ident(arg->ident));
+		} else {
+			fprintf(outfp, "\tcheck_expected(%s);\n", show_ident(arg->ident));
+		}
+	} END_FOR_EACH_PTR(arg);
+	fprintf(outfp, "}\n\n");
+
 }
 
 static const char *

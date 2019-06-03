@@ -67,12 +67,19 @@ static void mock_symbol(struct symbol *sym)
 	if (!sym) return;
 
 	// Not a pointer -> Not a function pointer ;-)
-	if (!is_ptr_type(sym)) {
-		return;
+	if (target_struct != NULL) {
+		if (!is_ptr_type(sym)) {
+			return;
+		}
 	}
+
 	// Do we have a funtion behind that pointer
 	// FIXME: wrap this in a helper 
-	fn = sym->ctype.base_type->ctype.base_type;
+	if (target_struct == NULL) {
+		fn = sym->ctype.base_type;
+	} else {
+		fn = sym->ctype.base_type->ctype.base_type;
+	}
 	if (fn->type != SYM_FN) {
 		return;
 	}
@@ -109,12 +116,12 @@ static void examine_symbol(struct symbol *sym)
 	// Not sure what this does; from c2xml
 	if (sym->ident && sym->ident->reserved) return;
 	if (sym->type == SYM_ENUM) return;
-	if (sym->type != SYM_STRUCT) return;
+//	if (sym->type != SYM_STRUCT) return;
 
-	if (strcmp(target_struct, sym->ident->name) != 0) {
-		// Not the one...
-		return;
-	}
+//	if (target_struct && strcmp(target_struct, sym->ident->name) != 0) {
+//		// Not the one...
+//		return;
+//	}
 
 	printf("// File: %s %d\n", stream_name(sym->pos.stream), sym->pos.line);
 	printf("struct %s\n", sym->ident->name);
@@ -122,10 +129,20 @@ static void examine_symbol(struct symbol *sym)
 	mock_members(sym->symbol_list);
 }
 
-
+static void cmocka_print(struct symbol *sym)
+{
+	mock_symbol(sym);
+}
 
 static void examine_namespace(struct symbol *sym)
 {
+	if (target_struct == NULL) {
+		if (sym->ident) {
+			if (sym->type == SYM_NODE)
+				cmocka_print(sym);
+			return;
+		}
+	}
 	if (sym->ident && sym->ident->reserved)
 		return;
 
@@ -149,7 +166,6 @@ static void examine_namespace(struct symbol *sym)
 
 }
 
-
 static void examine_symbol_list(const char *file, struct symbol_list *list)
 {
 	struct symbol *sym;
@@ -168,15 +184,17 @@ int main(int argc, char **argv) {
 	struct string_list *filelist = NULL;
 	struct symbol_list *symlist = NULL;
 	char *file;
-	const char *optstring = "t:mhvo:I:";
+	const char *optstring = "t:mhvco:I:";
+	int cmocka;
 	char *outfile;
 	FILE *out = NULL;
 	int make_mock = 0;
 	int opt;
 	const struct option options[] = {
+		{ "cmocka", no_argument, &cmocka, 'c' },
 		{ "type", required_argument, NULL, 't' },
-		{ "mock", no_argument, &make_mock, 1 },
-		{ "verbose", no_argument, &verbose, 1 },
+		{ "mock", no_argument, &make_mock, 'm' },
+		{ "verbose", no_argument, &verbose, 'v' },
 		{ "outfile", required_argument, NULL, 'o' },
 		{ "help", no_argument, NULL, 'h' }, 
 		{ NULL, 0, 0, 0 },
@@ -186,6 +204,10 @@ int main(int argc, char **argv) {
 
 	while ((opt = getopt_long(argc, argv, optstring, options, NULL)) != -1) {
 		switch (opt) {
+		case 'c':
+		case 'v':
+		case 'm':
+			break;
 		case 't':
 			target_struct = optarg;
 			break;
@@ -197,7 +219,7 @@ int main(int argc, char **argv) {
 			outfile = optarg;
 			break;
 		default:
-			printf("Unknown arg\n");
+			printf("Unknown arg: %c\n", opt);
 			exit(1);
 		}
 	}
