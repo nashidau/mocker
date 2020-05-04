@@ -179,6 +179,16 @@ static void examine_symbol_list(const char *file, struct symbol_list *list)
 	} END_FOR_EACH_PTR(sym);
 }
 
+static void
+usage(const char *program)
+{
+	printf("Mocker Usage\n");
+	printf("%s -o <outfile> -t <type> <infile>\n");
+	printf("\nOptions:\n");
+	printf(" -h help\n");
+	printf(" -t <type> Type to target\n");
+	exit(0);
+}
 
 int main(int argc, char **argv) {
 	struct string_list *filelist = NULL;
@@ -209,6 +219,7 @@ int main(int argc, char **argv) {
 		case 'm':
 			break;
 		case 't':
+			printf("Target is %s\n", optarg);
 			target_struct = optarg;
 			break;
 		case 'h':
