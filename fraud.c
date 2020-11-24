@@ -9,6 +9,9 @@
  * Templates should contain the following lines
  * **INCLUDES** (at the start of the line).
  *
+ * **TEMPLATE**
+
+ *
  */
 
 #include <assert.h>
@@ -36,6 +39,16 @@ static void examine_namespace(struct symbol *sym, FILE *outfp);
 static void mock_symbol(struct symbol *sym, FILE *outfp);
 static const char *get_typename(struct ctype *ctype);
 static void dump_mocks(struct string_list *filelist, struct symbol_list *symlist, FILE *outfp);
+
+
+static void
+usage(const char *argv0)
+{
+	puts("fraud: Generate a cmocka mock from a header file.");
+	puts("");
+	printf(" %s <-t template> -o <output.c> <inputfile> [sparse options]\n", argv0);
+}
+
 
 static int get_stream_id(const char *name)
 {
@@ -73,11 +86,12 @@ main(int argc, char **argv) {
 	struct symbol_list *symlist = NULL;
 	char opt;
 	struct include *includes = NULL;
-	const char *optstring = "t:o:i";
+	const char *optstring = "t:o:i:h";
 	const struct option options[] = {
 		{ "template", required_argument, NULL, 't' },
 		{ "output", required_argument, NULL, 'o' },
 		{ "include", required_argument, NULL, 'i' },
+		{ "help", no_argument, NULL, 'h' },
 		{ NULL, 0, 0, 0 },
 	};
 	const char *template = NULL;
@@ -96,6 +110,10 @@ main(int argc, char **argv) {
 		case 'i':
 			includes = push_include(includes, optarg);
 			break;
+		case 'h':
+			usage(argv[0]);
+			exit(0);
+			break;
 		default:
 			printf("Unkown Arg: %c\n", opt);
 			exit(1);
@@ -104,6 +122,7 @@ main(int argc, char **argv) {
 
 	if (template == NULL || output == NULL) {
 		printf("Need template & output\n");
+		usage(argv[0]);
 		exit(1);
 	}
 
