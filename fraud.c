@@ -7,11 +7,11 @@
  *   --include Include.path
  *
  * Templates should contain the following lines
- * **INCLUDES** (at the start of the line).
+ * ** INCLUDES (at the start of the line).
  *
- * **TEMPLATE**
-
+ * ** MOCKS  
  *
+ * If no template is given a very simple default is created.
  */
 
 #include <assert.h>
