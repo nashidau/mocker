@@ -6,6 +6,11 @@ struct bar {
 	int y;
 };
 
+union baz {
+	int x;
+	int z;
+};
+
 typedef struct bar bar_t;
 typedef struct { int x; } xxx_t;
 

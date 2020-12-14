@@ -183,7 +183,7 @@ static void
 usage(const char *program)
 {
 	printf("Mocker Usage\n");
-	printf("%s -o <outfile> -t <type> <infile>\n");
+	printf("%s -o <outfile> -t <type> <infile>\n", program);
 	printf("\nOptions:\n");
 	printf(" -h help\n");
 	printf(" -t <type> Type to target\n");
@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
 			target_struct = optarg;
 			break;
 		case 'h':
-			usage();
+			usage(argv[0]);
 			break;
 		case 'o':
 			printf("Outputting to %s\n", optarg);
