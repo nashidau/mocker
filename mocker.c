@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
 			target_struct = optarg;
 			break;
 		case 'h':
-			printf("FIXME: help\n");
+			usage();
 			break;
 		case 'o':
 			printf("Outputting to %s\n", optarg);
