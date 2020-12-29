@@ -248,12 +248,20 @@ get_typename(struct ctype *ctype) {
 	if (builtin) {
 		strcpy(p, builtin);
 		while (*p) p ++;
-	} else if (ctype->base_type->type == SYM_STRUCT) {
-		//strcpy(p, "struct ");
-		//p += 7;
+	} else if (ctype->base_type->type == SYM_STRUCT ||
+			ctype->base_type->type == SYM_UNION) {
+		if (ctype->base_type->type == SYM_UNION) {
+			strcpy(p, "struct ");
+			p += 7;
+		} else {
+			strcpy(p, "union ");
+			p += 6;
+		}
 		strcpy(p, ctype->base_type->ident->name);
 		p += ctype->base_type->ident->len;
+		printf("other name: %s", ctype->ident->name);
 	} else {
+	printf("Unknown type");
 		*p = '?';
 		p ++;
 	}
