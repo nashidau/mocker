@@ -8,6 +8,7 @@ fraud: fraud.o
 mocker: mocker.o
 	${CC} ${CFLAGS} -o mocker mocker.o ${LDFLAGS}
 
-test: mocker
+.PHONY: test
+test: mocker fraud
 	./mocker -c test/cmocka.h
-
+	./fraud -t test/template.fraud -o out.c test/cmocka.h

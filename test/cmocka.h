@@ -22,3 +22,6 @@ struct foo *cmock_testd(void);
 struct bar *cmock_teste(struct foo *foo);
 bar_t *cmock_testf(struct foo *foo);
 xxx_t *cmock_testg(struct foo *foo);
+bar_t *cmock_testh(union baz *foo);
+union baz *cmock_testi(union baz *foo);
+union baz cmock_testj(union baz *foo);
