@@ -59,9 +59,10 @@ usage(const char *argv0)
 static const char *
 get_space_prefix(int prefix) {
 	static const char *spaces = "          " "          " "          " "          ";
+	if (prefix * 2 > sizeof(spaces))
+		return spaces;
 	return spaces + 40 - 2 * prefix;
 }
-
 
 static int get_stream_id(const char *name)
 {
