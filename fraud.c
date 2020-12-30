@@ -60,6 +60,31 @@ static int get_stream_id(const char *name)
 	return -1;
 }
 
+/**
+ * Get the name of the Nth argument to a function.
+ * If there is not identifier, return a pregenerated 'argN' string.
+ */
+static const char *
+get_arg_name(int n, const struct ident *ident)
+{
+	const char *argN[11] = { 
+		"arg0", "arg1", "arg2", "arg3", "arg4", "arg5",
+		"arg6", "arg7", "arg8", "arg8", "arg9",
+	};
+
+
+	if (ident) {
+		return ident->name;
+	}
+	if (n < 11) {
+		return argN[n];
+	}
+	// Leaks a little; but rare
+	// FIXME: use a non-GNU asprintf (custom function here)
+	//asprintf(&tmp, "arg%d", n);
+	return "pants";
+}
+
 static struct include *
 push_include(struct include *list, const char *include) {
 	struct include *added;
@@ -189,7 +214,7 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 {
 	struct symbol *arg;
 	struct symbol *fn;
-	bool first = true;
+	int arg_index;
 
 	if (!sym) return;
 
@@ -202,30 +227,35 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 	// So we have a function pointer:
 	fprintf(outfp, "%s\n%s(\n", get_typename(&fn->ctype), show_ident(sym->ident));
 
+	arg_index = 1;
 	FOR_EACH_PTR(fn->arguments, arg) {
-		fprintf(outfp, "%s\t\t%s %s", first ? "": ",\n", get_typename(&arg->ctype), show_ident(arg->ident));
-		first = false;
+		fprintf(outfp, "%s\t\t%s %s", arg_index == 1 ? "": ",\n", 
+				get_typename(&arg->ctype), get_arg_name(arg_index, arg->ident));
+		arg_index ++;
 	} END_FOR_EACH_PTR(arg);
-	if (first) {
+	// Function had no params, print 'void'.
+	if (arg_index == 1) {
 		fprintf(outfp, "\t\tvoid");
 	}
 	fprintf(outfp, ") {\n");
 
+	arg_index = 1;
 	FOR_EACH_PTR(fn->arguments, arg) {
-		if (strcmp(show_ident(arg->ident), "result") == 0) {
+		if (strcmp(get_arg_name(arg_index, arg->ident), "result") == 0) {
 			fprintf(outfp, "\t{\n");
 			fprintf(outfp, "\t\t%s rv = mock_ptr_type(%s));\n",
 					get_typename(&arg->ctype),
 					get_typename(&arg->ctype));
-			fprintf(outfp, "\t\tif (%s != NULL) {\n", show_ident(arg->ident));
+			fprintf(outfp, "\t\tif (%s != NULL) {\n", get_arg_name(arg_index, arg->ident));
 			fprintf(outfp, "\t\t\tmemcpy(%s, rv, sizeof(*%s));\n",
-					show_ident(arg->ident), show_ident(arg->ident));
+					get_arg_name(arg_index, arg->ident), get_arg_name(arg_index, arg->ident));
 			fprintf(outfp, "\t\t}\n\t}\n");
 		} else if (arg->ctype.base_type->type == SYM_PTR) {
-			fprintf(outfp, "\tcheck_expected_ptr(%s);\n", show_ident(arg->ident));
+			fprintf(outfp, "\tcheck_expected_ptr(%s);\n", get_arg_name(arg_index, arg->ident));
 		} else {
-			fprintf(outfp, "\tcheck_expected(%s);\n", show_ident(arg->ident));
+			fprintf(outfp, "\tcheck_expected(%s);\n", get_arg_name(arg_index, arg->ident));
 		}
+		arg_index ++;
 	} END_FOR_EACH_PTR(arg);
 	fprintf(outfp, "}\n\n");
 
@@ -259,9 +289,9 @@ get_typename(struct ctype *ctype) {
 		}
 		strcpy(p, ctype->base_type->ident->name);
 		p += ctype->base_type->ident->len;
-		printf("other name: %s", ctype->ident->name);
+		//printf("other name: %s", ctype->ident->name);
 	} else {
-	printf("Unknown type");
+		printf("Unknown type");
 		*p = '?';
 		p ++;
 	}
