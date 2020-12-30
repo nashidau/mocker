@@ -258,8 +258,11 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 		arg_index ++;
 	} END_FOR_EACH_PTR(arg);
 
-	// PRint the return 
-	fprintf(outfp, "\treturn mock_type(%s);\n", get_typename(&fn->ctype));
+	// Print the return, if not void
+	// FIXME: Should check the basetype and use that.
+	if (strcmp(get_typename(&fn->ctype), "void") != 0) {
+		fprintf(outfp, "\treturn mock_type(%s);\n", get_typename(&fn->ctype));
+	}
 
 	fprintf(outfp, "}\n\n");
 

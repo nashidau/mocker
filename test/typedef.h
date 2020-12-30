@@ -15,4 +15,4 @@ int function(foo_t *arg);
 
 int function2(bar_t *arg);
 
-int function3(struct baz);
+void function3(struct baz);
