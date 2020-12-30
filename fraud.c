@@ -27,6 +27,9 @@
 #include "scope.h"
 #include "symbol.h"
 
+// How much debug to spew to stdout.
+// 0 is none, higher is more and more to 100
+static int verbosity = 0;
 
 struct include {
 	struct include *next;
@@ -39,7 +42,7 @@ static void examine_namespace(struct symbol *sym, FILE *outfp);
 static void mock_symbol(struct symbol *sym, FILE *outfp);
 static const char *get_typename(struct ctype *ctype);
 static void dump_mocks(struct string_list *filelist, struct symbol_list *symlist, FILE *outfp);
-
+static void print_symbol(struct symbol *sym, int indent);
 
 static void
 usage(const char *argv0)
@@ -47,6 +50,16 @@ usage(const char *argv0)
 	puts("fraud: Generate a cmocka mock from a header file.");
 	puts("");
 	printf(" %s <-t template> -o <output.c> <inputfile> [sparse options]\n", argv0);
+	printf(" -v Print lots of verbose debugging\n");
+}
+
+/** Returns a constant string of spaces which is a prefix.
+ *
+ */
+static const char *
+get_space_prefix(int prefix) {
+	static const char *spaces = "          " "          " "          " "          ";
+	return spaces + 40 - 2 * prefix;
 }
 
 
@@ -111,12 +124,13 @@ main(int argc, char **argv) {
 	struct symbol_list *symlist = NULL;
 	char opt;
 	struct include *includes = NULL;
-	const char *optstring = "t:o:i:h";
+	const char *optstring = "t:o:i:hv";
 	const struct option options[] = {
 		{ "template", required_argument, NULL, 't' },
 		{ "output", required_argument, NULL, 'o' },
 		{ "include", required_argument, NULL, 'i' },
 		{ "help", no_argument, NULL, 'h' },
+		{ "verbose", no_argument, NULL, 'v' },
 		{ NULL, 0, 0, 0 },
 	};
 	const char *template = NULL;
@@ -138,6 +152,9 @@ main(int argc, char **argv) {
 		case 'h':
 			usage(argv[0]);
 			exit(0);
+			break;
+		case 'v':
+			verbosity ++;
 			break;
 		default:
 			printf("Unkown Arg: %c\n", opt);
@@ -218,6 +235,8 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 
 	if (!sym) return;
 
+	if (verbosity > 0) print_symbol(sym, 0);
+
 	fn = sym->ctype.base_type;
 	
 	if (fn->type != SYM_FN) {
@@ -231,6 +250,10 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 	FOR_EACH_PTR(fn->arguments, arg) {
 		fprintf(outfp, "%s\t\t%s %s", arg_index == 1 ? "": ",\n", 
 				get_typename(&arg->ctype), get_arg_name(arg_index, arg->ident));
+		if (verbosity > 0) {
+			printf("Arg %d\n", arg_index);
+			print_symbol(sym, 0);
+		}
 		arg_index ++;
 	} END_FOR_EACH_PTR(arg);
 	// Function had no params, print 'void'.
@@ -268,6 +291,31 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 
 }
 
+static void
+print_ctype(struct ctype *ctype, int indent) {
+	const char *prefix = get_space_prefix(indent);
+	printf("%s##ctype: %p\n", prefix, ctype);
+	if (ctype->base_type) {
+		printf("%s<<basetype:",prefix); print_symbol(ctype->base_type, indent + 1);
+		printf("%s>>\n    modifiers: %lu  Alignment %lu\n", prefix, ctype->modifiers, ctype->alignment);
+	} else {
+		printf("%s    modifiers: %lu  Alignment %lu\n", prefix, ctype->modifiers, ctype->alignment);
+	}
+}
+
+static void
+print_symbol(struct symbol *sym, int indent) {
+	const char *prefix = get_space_prefix(indent);
+	printf("%s##sym %p\n", prefix, sym);
+	printf("%s  type: %d\n", prefix, sym->type);
+	printf("%s  namespace: %d\n", prefix, sym->namespace);
+	printf("%s  used: %d Attr: %d enum_member: %d bound: %d\n",
+			prefix, sym->used, sym->attr, sym->enum_member, sym->bound);
+	printf("%s  ident: %p/%s\n", prefix, sym->ident, show_ident(sym->ident));
+	printf("%s  next: %p\n", prefix, sym->next_id);
+	print_ctype(&sym->ctype, indent);
+}
+
 static const char *
 get_typename(struct ctype *ctype) {
 	int pcount = 0;
@@ -275,6 +323,7 @@ get_typename(struct ctype *ctype) {
 	char *p;
 	const char *builtin;
 	p = buf;
+
 
 	while (ctype->base_type->type == SYM_PTR) {
 		pcount ++;
@@ -287,12 +336,14 @@ get_typename(struct ctype *ctype) {
 		while (*p) p ++;
 	} else if (ctype->base_type->type == SYM_STRUCT ||
 			ctype->base_type->type == SYM_UNION) {
-		if (ctype->base_type->type == SYM_UNION) {
-			strcpy(p, "struct ");
-			p += 7;
-		} else {
-			strcpy(p, "union ");
-			p += 6;
+		if (ctype->base_type->namespace == NS_STRUCT) {
+			if (ctype->base_type->type == SYM_UNION) {
+				strcpy(p, "union ");
+				p += 6;
+			} else {
+				strcpy(p, "struct ");
+				p += 7;
+			}
 		}
 		strcpy(p, ctype->base_type->ident->name);
 		p += ctype->base_type->ident->len;

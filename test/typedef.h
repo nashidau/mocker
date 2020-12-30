@@ -13,6 +13,6 @@ struct baz {
 
 int function(foo_t *arg);
 
-int function2(bar_t *arg);
+foo_t function2(bar_t *arg);
 
 void function3(struct baz);
