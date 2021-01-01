@@ -257,6 +257,7 @@ static void mock_symbol(struct symbol *sym, FILE *outfp)
 		}
 		arg_index ++;
 	} END_FOR_EACH_PTR(arg);
+
 	// Function had no params, print 'void'.
 	if (arg_index == 1) {
 		fprintf(outfp, "\t\tvoid");
@@ -348,7 +349,6 @@ get_typename(struct ctype *ctype) {
 		}
 		strcpy(p, ctype->base_type->ident->name);
 		p += ctype->base_type->ident->len;
-		//printf("other name: %s", ctype->ident->name);
 	} else {
 		printf("Unknown type");
 		*p = '?';
